@@ -6,23 +6,35 @@
         xmlns:local="clr-namespace:EfemSimulation"
         xmlns:WpfPlot="clr-namespace:ScottPlot.WPF;assembly=ScottPlot.WPF"
         mc:Ignorable="d"
-        Title="반도체 웨이퍼 이송 시뮬레이터" Height="450" Width="800">
-    <Grid Margin="15">
+        Title="반도체 웨이퍼 이송 시뮬레이터" Height="720" Width="1200">
+    <Grid Margin="15,15,15,200">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="1.2*"/>
-            <!-- 그래프 영역 -->
+            <!-- 로그 텍스트리스트 영역 -->
             <ColumnDefinition Width="1*"/>
             <!-- 2D 미니맵 영역 -->
         </Grid.ColumnDefinitions>
 
-        <!-- 1. 실시간 모터 속도 그래프 (ScottPlot) -->
+        <!-- 1. 실시간 로그 (TextList) -->
         <Grid Grid.Column="0" Margin="0,0,15,0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
-            <TextBlock Text="■ 실시간 모터 변속량 (Speed)" Foreground="White" FontSize="14" FontWeight="Bold" Margin="0,0,0,10"/>
-            <WpfPlot:WpfPlot Name="SpeedPlot" Grid.Row="1"/>
+            <TextBlock Text="■ 실시간 로그" Foreground="White" FontSize="14" FontWeight="Bold" Margin="0,0,0,10"/>
+            
+            <ListBox Grid.Row="1" Name="LogListBox" Background="#1E1E1E" Foreground="#D4D4D4" 
+                     BorderBrush="#555555" BorderThickness="1" Padding="8">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,2"/>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+            
+            <Button Grid.Row="2" Content="속도 그래프 보기" Click="BtnShowSpeedGraph_Click" Height="35" Margin="0,10,0,0"
+                    Background="#007ACC" Foreground="White" FontWeight="Bold" FontSize="12"/>
         </Grid>
 
         <!-- 2. 2D 미니맵 및 시뮬레이션 제어 -->
