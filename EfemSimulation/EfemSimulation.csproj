@@ -45,8 +45,9 @@
     <OutputPath>bin\x64\Release\</OutputPath>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="CoreMotionApi_CLRLib">
-      <HintPath>..\..\..\Program Files\SoftServo\WMX3\Lib\CoreMotionApi_CLRLib.dll</HintPath>
+    <Reference Include="CoreMotionApi_CLRLib, Version=1.0.9673.27285, Culture=neutral, processorArchitecture=AMD64">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>C:\Program Files\SoftServo\WMX3\Lib\CoreMotionApi_CLRLib.dll</HintPath>
     </Reference>
     <Reference Include="GLWpfControl, Version=3.3.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\OpenTK.GLWpfControl.3.3.0\lib\net452\GLWpfControl.dll</HintPath>
@@ -102,8 +103,9 @@
     <Reference Include="WindowsBase" />
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
-    <Reference Include="WMX3Api_CLRLib">
-      <HintPath>..\..\..\Program Files\SoftServo\WMX3\Lib\WMX3Api_CLRLib.dll</HintPath>
+    <Reference Include="WMX3Api_CLRLib, Version=1.0.9670.31174, Culture=neutral, processorArchitecture=AMD64">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>C:\Program Files\SoftServo\WMX3\Lib\WMX3Api_CLRLib.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -111,9 +113,11 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="Models\AxisStatusManager.cs" />
     <Compile Include="SpeedGraphWindow.xaml.cs">
       <DependentUpon>SpeedGraphWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="ViewModels\AxisStatusViewModel.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -160,9 +164,9 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
-    <Analyzer Include="..\..\..\Program Files\SoftServo\WMX3\Lib\CoreMotionApi_CLRLib.dll" />
-    <Analyzer Include="..\..\..\Program Files\SoftServo\WMX3\Lib\IMDll.dll" />
-    <Analyzer Include="..\..\..\Program Files\SoftServo\WMX3\Lib\WMX3Api_CLRLib.dll" />
+    <Analyzer Include="C:\Program Files\SoftServo\WMX3\Lib\CoreMotionApi_CLRLib.dll" />
+    <Analyzer Include="C:\Program Files\SoftServo\WMX3\Lib\IMDll.dll" />
+    <Analyzer Include="C:\Program Files\SoftServo\WMX3\Lib\WMX3Api_CLRLib.dll" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="IMDll.dll">
