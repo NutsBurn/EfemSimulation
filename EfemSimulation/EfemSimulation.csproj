@@ -114,6 +114,7 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="Models\AxisStatusManager.cs" />
+    <Compile Include="Models\MotionState.cs" />
     <Compile Include="SpeedGraphWindow.xaml.cs">
       <DependentUpon>SpeedGraphWindow.xaml</DependentUpon>
     </Compile>

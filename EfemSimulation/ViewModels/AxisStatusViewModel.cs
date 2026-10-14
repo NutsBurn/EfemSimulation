@@ -1,6 +1,8 @@
-using System;
+﻿using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Windows;
+using System.Windows.Media;
 
 namespace EfemSimulation.ViewModels
 {
@@ -11,7 +13,13 @@ namespace EfemSimulation.ViewModels
         private double _actualPosition;
         private double _velocity;
         private uint _alarmCode;
-        private string _statusText;
+        private string _statusText = "🔴 미연결";
+        private SolidColorBrush _statusColor = new SolidColorBrush(Color.FromRgb(255, 68, 68)); // 빨간색 (#FF4444)
+
+        // 미리 생성된 색상 브러시 (UI 스레드에서만 한 번 생성)
+        private static readonly SolidColorBrush RedBrush = new SolidColorBrush(Color.FromRgb(255, 68, 68));    // 🔴 미연결
+        private static readonly SolidColorBrush GreenBrush = new SolidColorBrush(Color.FromRgb(34, 255, 85));   // 🟢 Servo ON
+        private static readonly SolidColorBrush YellowBrush = new SolidColorBrush(Color.FromRgb(255, 193, 7));  // ⚠️ 경보
 
         public int AxisIndex
         {
@@ -22,7 +30,13 @@ namespace EfemSimulation.ViewModels
         public bool ServoOn
         {
             get => _servoOn;
-            set => SetProperty(ref _servoOn, value);
+            set
+            {
+                if (SetProperty(ref _servoOn, value))
+                {
+                    UpdateStatusDisplay();
+                }
+            }
         }
 
         public double ActualPosition
@@ -45,6 +59,7 @@ namespace EfemSimulation.ViewModels
                 if (SetProperty(ref _alarmCode, value))
                 {
                     OnPropertyChanged(nameof(AlarmText));
+                    UpdateStatusDisplay();
                 }
             }
         }
@@ -55,9 +70,44 @@ namespace EfemSimulation.ViewModels
             set => SetProperty(ref _statusText, value);
         }
 
+        public SolidColorBrush StatusColor
+        {
+            get => _statusColor;
+            set => SetProperty(ref _statusColor, value);
+        }
+
         public string AlarmText
         {
-            get => _alarmCode == 0 ? "����" : $"[�˶�] {_alarmCode}";
+            get => _alarmCode == 0 ? "정상" : $"[경보] {_alarmCode}";
+        }
+
+        /// <summary>
+        /// 상태에 따라 텍스트와 색상 업데이트
+        /// </summary>
+        private void UpdateStatusDisplay()
+        {
+            if (_servoOn)
+            {
+                // 서보 ON 상태
+                if (_alarmCode != 0)
+                {
+                    // 알람 발생
+                    StatusText = $"⚠️ 경보 (Alarm: {_alarmCode})";
+                    StatusColor = YellowBrush;
+                }
+                else
+                {
+                    // 정상 작동
+                    StatusText = "🟢 Servo ON";
+                    StatusColor = GreenBrush;
+                }
+            }
+            else
+            {
+                // 서보 OFF 상태 (미연결)
+                StatusText = "🔴 미연결";
+                StatusColor = RedBrush;
+            }
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

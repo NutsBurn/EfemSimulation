@@ -15,7 +15,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- 서보 상태 패널 (상단) -->
+             <!-- 서보 상태 패널 (상단) -->
         <Border Grid.Row="0" Background="#2D2D2D" BorderBrush="#555555" BorderThickness="1" CornerRadius="8" Padding="15" Margin="0,0,0,15">
             <StackPanel>
                 <TextBlock Text="■ WMX3 서보모터 상태" Foreground="White" FontSize="14" FontWeight="Bold" Margin="0,0,0,10"/>
@@ -26,7 +26,7 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- Axis 0 (X축) -->
+                               <!-- Axis 0 (X축) -->
                     <Border Grid.Column="0" Background="#1E1E1E" BorderBrush="#555555" BorderThickness="1" CornerRadius="5" Padding="12" Margin="0,0,10,0">
                         <StackPanel>
                             <TextBlock Text="축 0 (X축)" Foreground="#FFD700" FontSize="12" FontWeight="Bold" Margin="0,0,0,8"/>
@@ -36,7 +36,8 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="상태:" Foreground="#A0A0A0" Width="50"/>
-                                <TextBlock Grid.Column="1" Text="{Binding AxisStatuses[0].StatusText}" Foreground="#22FF55" FontWeight="Bold"/>
+                                <TextBlock Grid.Column="1" Text="{Binding AxisStatuses[0].StatusText}" 
+                                           Foreground="{Binding AxisStatuses[0].StatusColor}" FontWeight="Bold"/>
                             </Grid>
                             <Grid Margin="0,0,0,4">
                                 <Grid.ColumnDefinitions>
@@ -65,7 +66,7 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Axis 1 (Y축) -->
+                              <!-- Axis 1 (Y축) -->
                     <Border Grid.Column="1" Background="#1E1E1E" BorderBrush="#555555" BorderThickness="1" CornerRadius="5" Padding="12" Margin="0,0,10,0">
                         <StackPanel>
                             <TextBlock Text="축 1 (Y축)" Foreground="#FFD700" FontSize="12" FontWeight="Bold" Margin="0,0,0,8"/>
@@ -75,7 +76,8 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="상태:" Foreground="#A0A0A0" Width="50"/>
-                                <TextBlock Grid.Column="1" Text="{Binding AxisStatuses[1].StatusText}" Foreground="#22FF55" FontWeight="Bold"/>
+                                <TextBlock Grid.Column="1" Text="{Binding AxisStatuses[1].StatusText}" 
+                                           Foreground="{Binding AxisStatuses[1].StatusColor}" FontWeight="Bold"/>
                             </Grid>
                             <Grid Margin="0,0,0,4">
                                 <Grid.ColumnDefinitions>
@@ -104,7 +106,7 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Axis 2 (Z축) -->
+                               <!-- Axis 2 (Z축) -->
                     <Border Grid.Column="2" Background="#1E1E1E" BorderThickness="1" CornerRadius="5" Padding="12">
                         <StackPanel>
                             <TextBlock Text="축 2 (Z축)" Foreground="#FFD700" FontSize="12" FontWeight="Bold" Margin="0,0,0,8"/>
@@ -114,7 +116,8 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="상태:" Foreground="#A0A0A0" Width="50"/>
-                                <TextBlock Grid.Column="1" Text="{Binding AxisStatuses[2].StatusText}" Foreground="#22FF55" FontWeight="Bold"/>
+                                <TextBlock Grid.Column="1" Text="{Binding AxisStatuses[2].StatusText}" 
+                                           Foreground="{Binding AxisStatuses[2].StatusColor}" FontWeight="Bold"/>
                             </Grid>
                             <Grid Margin="0,0,0,4">
                                 <Grid.ColumnDefinitions>
@@ -152,7 +155,7 @@
                 <ColumnDefinition Width="1*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- 실시간 로그 -->
+                   <!-- 실시간 로그 -->
             <Grid Grid.Column="0" Margin="0,0,15,0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -174,7 +177,7 @@
                         Background="#007ACC" Foreground="White" FontWeight="Bold" FontSize="12"/>
             </Grid>
 
-            <!-- 2D 미니맵 -->
+                  <!-- 2D 미니맵 -->
             <Grid Grid.Column="1">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -188,35 +191,35 @@
                         <TextBlock Text="■ 미니맵 (300mm x 300mm)" Foreground="White" FontSize="12" FontWeight="Bold" Margin="0,0,0,10"/>
                         <Border Background="#0A0A0A" BorderBrush="#555555" BorderThickness="1">
                             <Canvas Name="MiniMapCanvas" Width="300" Height="300">
-                                <!-- 시작점 (Start) - 웨이퍼 초기 위치 -->
+                                                <!-- 시작점 (Start) - 웨이퍼 초기 위치 -->
                                 <Rectangle Name="StartStation" Width="40" Height="40" Fill="#90EE90"/>
                                 <TextBlock Name="TxtStart" Text="Start" Width="40" Height="40"
                                            Foreground="Black" FontSize="10" FontWeight="Bold"
                                            TextAlignment="Center" VerticalAlignment="Center"
                                            HorizontalAlignment="Center"/>
 
-                                <!-- 웨이퍼 위치 (Target) - 웨이퍼가 있는 장소 -->
+                                                 <!-- 웨이퍼 위치 (Target) - 웨이퍼가 있는 장소 -->
                                 <Rectangle Name="TargetStation" Width="40" Height="40" Fill="#FFD8A8"/>
                                 <TextBlock Name="TxtTarget" Text="Target" Width="40" Height="40"
                                            Foreground="Black" FontSize="10" FontWeight="Bold"
                                            TextAlignment="Center" VerticalAlignment="Center"
                                            HorizontalAlignment="Center"/>
 
-                                <!-- 최종 목적지 (Goal) -->
+                                                <!-- 최종 목적지 (Goal) -->
                                 <Rectangle Name="GoalStation" Width="40" Height="40" Fill="#FFB3B3"/>
                                 <TextBlock Name="TxtGoal" Text="Goal" Width="40" Height="40"
                                            Foreground="Black" FontSize="10" FontWeight="Bold"
                                            TextAlignment="Center" VerticalAlignment="Center"
                                            HorizontalAlignment="Center"/>
 
-                                <!-- 웨이퍼 -->
+                                                <!-- 웨이퍼 -->
                                 <Ellipse Name="Wafer" Width="30" Height="30" Fill="#D3D3D3" Opacity="0.8"/>
 
-                                <!-- 실제 X/Y 모터 위치 -->
-                                <Ellipse Name="StagePosition" Width="30" Height="30"
+                                                <!-- 실제 X/Y 모터 위치 -->
+                                <Ellipse Name="StagePosition" Width="14" Height="14"
                                          Fill="Transparent" Stroke="#3399FF" StrokeThickness="6"/>
 
-                                <!-- 궤적 라인 -->
+                                                 <!-- 궤적 라인 -->
                                 <Polyline Name="TrajectoryLine" Stroke="#33FF57" StrokeThickness="2" Opacity="0.6"/>
                             </Canvas>
                         </Border>
@@ -225,8 +228,30 @@
             </Grid>
         </Grid>
 
-        <!-- 제어 버튼 -->
-        <Button Grid.Row="2" Content="이송 시뮬레이션 시작" Click="BtnStart_Click" Height="40" 
-                Background="#007ACC" Foreground="White" FontWeight="Bold" FontSize="14"/>
+            <!-- 제어 버튼 -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Button Grid.Column="0" Content="▶ 시작" Click="BtnStart_Click" Height="40" 
+                    Background="#007ACC" Foreground="White" FontWeight="Bold" FontSize="14" Margin="0,0,5,0"/>
+            
+            <Button Grid.Column="1" Content="⏸ 일시정지" Click="BtnPause_Click" Height="40"
+                    Background="#FF9800" Foreground="White" FontWeight="Bold" FontSize="14" Margin="5,0,5,0"/>
+            
+            <Button Grid.Column="2" Content="▶ 재개" Click="BtnResume_Click" Height="40"
+                    Background="#4CAF50" Foreground="White" FontWeight="Bold" FontSize="14" Margin="5,0,5,0"/>
+            
+            <Button Grid.Column="3" Content="⏹ 중지" Click="BtnStop_Click" Height="40"
+                    Background="#F44336" Foreground="White" FontWeight="Bold" FontSize="14" Margin="5,0,5,0"/>
+            
+            <Button Grid.Column="4" Content="🚨 긴급중지" Click="BtnInterlock_Click" Height="40"
+                    Background="#8B0000" Foreground="White" FontWeight="Bold" FontSize="14" Margin="5,0,0,0"/>
+        </Grid>
     </Grid>
 </Window>

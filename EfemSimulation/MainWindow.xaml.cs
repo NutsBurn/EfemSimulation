@@ -76,33 +76,87 @@ namespace EfemSimulation
         // 펄스와 밀리미터 변환 관련 상수
         private const double PulsesPerStage = 100000.0; // 스테이지당 펄스 수
 
+        // 상태 머신 및 스레드 관련 변수
+        private MotionStateMachine _stateMachine;
+        private Thread _wmx3LogicThread;
+        private bool _motionThreadRunning = false;
+
         public MainWindow()
         {
             InitializeComponent();
+            _stateMachine = new MotionStateMachine();
+            InitializeViewModel();
             InitSimulationEnvironment();
+        }
+
+        private void InitializeViewModel()
+        {
+            // 초기 ViewModel 생성 (WMX3 없이 기본 상태만 표시)
+            _viewModel = new MainWindowViewModel
+            {
+                AxisStatuses = new ObservableCollection<AxisStatusViewModel>
+                {
+                    new AxisStatusViewModel
+                    {
+                        AxisIndex = 0,
+                        StatusText = "🔴 미연결",
+                        StatusColor = new System.Windows.Media.SolidColorBrush(
+                            System.Windows.Media.Color.FromRgb(255, 68, 68)), // 빨간색
+                        ActualPosition = 0.0,
+                        Velocity = 0.0,
+                        AlarmCode = 0,
+                        ServoOn = false
+                    },
+                    new AxisStatusViewModel
+                    {
+                        AxisIndex = 1,
+                        StatusText = "🔴 미연결",
+                        StatusColor = new System.Windows.Media.SolidColorBrush(
+                            System.Windows.Media.Color.FromRgb(255, 68, 68)), // 빨간색
+                        ActualPosition = 0.0,
+                        Velocity = 0.0,
+                        AlarmCode = 0,
+                        ServoOn = false
+                    },
+                    new AxisStatusViewModel
+                    {
+                        AxisIndex = 2,
+                        StatusText = "🔴 미연결",
+                        StatusColor = new System.Windows.Media.SolidColorBrush(
+                            System.Windows.Media.Color.FromRgb(255, 68, 68)), // 빨간색
+                        ActualPosition = 0.0,
+                        Velocity = 0.0,
+                        AlarmCode = 0,
+                        ServoOn = false
+                    }
+                }
+            };
+
+            this.DataContext = _viewModel;
+            AddLog("✓ UI 초기화 완료 - WMX3 미연결 상태");
         }
 
         private void InitSimulationEnvironment()
         {
-            // 1. 그래프 초기화
+                   // 1. 그래프 초기화
             InitializeSpeedGraph();
 
-            // 2. 미니맵 요소 고정 배치 (mm -> px 변환 적용)
-            // Start 위치
+                   // 2. 미니맵 요소 고정 배치 (mm -> px 변환 적용)
+                  // Start 위치
             Point startPx = ConvertMMToPx(_startPositionMM);
             Canvas.SetLeft(StartStation, startPx.X - 20);
             Canvas.SetTop(StartStation, startPx.Y - 20);
             Canvas.SetLeft(TxtStart, startPx.X - 20);
             Canvas.SetTop(TxtStart, startPx.Y - 20);
 
-            // Target 위치 (웨이퍼 초기 위치)
+                  // Target 위치 (웨이퍼 초기 위치)
             Point targetPx = ConvertMMToPx(_targetPositionMM);
             Canvas.SetLeft(TargetStation, targetPx.X - 20);
             Canvas.SetTop(TargetStation, targetPx.Y - 20);
             Canvas.SetLeft(TxtTarget, targetPx.X - 20);
             Canvas.SetTop(TxtTarget, targetPx.Y - 20);
 
-            // Goal 위치 (최종 목적지)
+                  // Goal 위치 (최종 목적지)
             Point goalPx = ConvertMMToPx(_goalPositionMM);
             Canvas.SetLeft(GoalStation, goalPx.X - 20);
             Canvas.SetTop(GoalStation, goalPx.Y - 20);
@@ -110,10 +164,10 @@ namespace EfemSimulation
             Canvas.SetTop(TxtGoal, goalPx.Y - 20);
 
             UpdateStagePositionOnCanvas(_startPositionMM);
-            // 웨이퍼 초기 위치 (Target 위치에 배치)
+                  // 웨이퍼 초기 위치 (Target 위치에 배치)
             UpdateWaferPositionOnCanvas(_targetPositionMM);
 
-            // 3. 타이머 생성
+                  // 3. 타이머 생성
             _simTimer = new DispatcherTimer();
             _simTimer.Interval = TimeSpan.FromMilliseconds(20);
             _simTimer.Tick += SimulationLoop;
@@ -152,47 +206,259 @@ namespace EfemSimulation
 
         private void BtnStart_Click(object sender, RoutedEventArgs e)
         {
-            Thread wmx3LogicThread = new Thread(() => Wmx3Logic())
+            if (_stateMachine.CurrentState == MotionState.Idle)
             {
-                IsBackground = true
-            };
+                _stateMachine.RequestStart();
+                
+                _wmx3LogicThread = new Thread(() => Wmx3MotionLoop())
+                {
+                    IsBackground = true
+                };
+                _motionThreadRunning = true;
+                _wmx3LogicThread.Start();
 
-            wmx3LogicThread.Start();
+                AddLog("▶ 웨이퍼 이송 시뮬레이션 시작");
+            }
         }
 
-        private void Wmx3Logic()
+        private void BtnPause_Click(object sender, RoutedEventArgs e)
+        {
+            if (_stateMachine.CurrentState == MotionState.Running)
+            {
+                _stateMachine.RequestPause();
+                AddLog("⏸ 일시정지 요청됨");
+            }
+        }
+
+        private void BtnResume_Click(object sender, RoutedEventArgs e)
+        {
+            if (_stateMachine.CurrentState == MotionState.Paused)
+            {
+                _stateMachine.RequestResume();
+                AddLog("▶ 재개 요청됨");
+            }
+        }
+
+        private void BtnStop_Click(object sender, RoutedEventArgs e)
+        {
+            if (_stateMachine.CurrentState == MotionState.Running ||
+                _stateMachine.CurrentState == MotionState.Paused)
+            {
+                _stateMachine.RequestStop();
+                AddLog("⏹ 중지 요청됨 (현재 시나리오 완료 후 반복 중단)");
+            }
+        }
+
+        private void BtnInterlock_Click(object sender, RoutedEventArgs e)
+        {
+            _stateMachine.RequestInterlock();
+            AddLog("🚨 긴급 중지(비상 정지) 요청됨 - 즉시 모든 모션 중단");
+        }
+
+        // 상태 머신 기반 웨이퍼 이송 루프 (새 스레드에서 실행)
+        private void Wmx3MotionLoop()
         {
             WMX3Api Wmx3Lib = new WMX3Api();
             EngineStatus EnStatus = new EngineStatus();
             CoreMotionStatus CmStatus = new CoreMotionStatus();
             CoreMotion Wmx3Lib_cm = new CoreMotion(Wmx3Lib);
 
-            AddLog("웨이퍼 이송 시뮬레이션 시작");
-
-            // AxisStatusManager 생성
-            _axisStatusManager = new AxisStatusManager(Wmx3Lib, Wmx3Lib_cm);
-
-            // ViewModel 생성 및 DataContext 설정
-            Dispatcher.Invoke(() =>
+            try
             {
-                _viewModel = new MainWindowViewModel 
-                { 
-                    AxisStatuses = _axisStatusManager.AxisStatuses 
-                };
-                this.DataContext = _viewModel;
-                StartStatusPolling();
-            });
+                         // 디바이스 초기화 (호밍, 서보 ON 등)
+                InitializeDevice(Wmx3Lib, Wmx3Lib_cm, ref EnStatus, ref CmStatus);
 
-            Motion.LinearIntplCommand linearIntplCommand = new Motion.LinearIntplCommand();
+                        // AxisStatusManager 생성 및 폴링 시작 (UI 업데이트용)
+                _axisStatusManager = new AxisStatusManager(Wmx3Lib, Wmx3Lib_cm);
 
+                Dispatcher.Invoke(() =>
+                {
+                    _axisStatusManager = new AxisStatusManager(Wmx3Lib, Wmx3Lib_cm);
+                    _viewModel.AxisStatuses = _axisStatusManager.AxisStatuses;
+                    _axisStatusManager.UpdateAxisStatus();
+                    StartStatusPolling();
+                    AddLog("✓ WMX3 연결됨 - 실시간 상태 모니터링 시작");
+});
+
+                        // 상태 머신: Starting → Running으로 전환
+                _stateMachine._currentState = MotionState.Running; // Starting 상태에서 Running으로
+                _stateMachine._currentStep = MotionStep.Idle;
+
+                        // 주 제어 루프
+                while (_motionThreadRunning && !_stateMachine.IsInterlocked())
+                {
+                                // 일시정지 체크
+                    if (_stateMachine.CheckAndApplyPause())
+                    {
+                        AddLog($"[상태] 일시정지 - 현재 단계: {_stateMachine.CurrentStep}");
+                                    // 모든 축 속도 0으로 설정 (Pause)
+                        PauseAllAxes(Wmx3Lib_cm);
+
+                                    // 일시정지 상태에서 대기
+                        while (_stateMachine.CurrentState == MotionState.Paused && !_stateMachine.IsInterlocked())
+                        {
+                            Thread.Sleep(100);
+                        }
+
+                        if (_stateMachine.CurrentState == MotionState.Running)
+                        {
+                            AddLog($"[상태] 재개 - 현재 단계: {_stateMachine.CurrentStep}");
+                        }
+                    }
+
+                               // 중단 체크
+                    if (_stateMachine.ShouldStop())
+                    {
+                        AddLog("⏹ 중지 신호 감지 - 현재 시나리오 완료 후 반복 중단");
+                        break;
+                    }
+
+                               // 긴급 중지 체크
+                    if (_stateMachine.IsInterlocked())
+                    {
+                        AddLog("🚨 긴급 중지 신호 감지 - 즉시 모든 모션 중단");
+                        ImmediateStopAllAxes(Wmx3Lib_cm);
+                        break;
+                    }
+
+                              // 모션 단계별 처리
+                    ExecuteMotionStep(Wmx3Lib_cm, ref CmStatus);
+
+                               // 현재 시나리오 완료 후 반복 여부 결정
+                    if (_stateMachine.CurrentStep == MotionStep.Completed)
+                    {
+                        if (_stateMachine.TryRestartCycle())
+                        {
+                            AddLog($"✓ 사이클 {_stateMachine.CycleCount} 완료 - 다음 사이클 시작");
+                            Thread.Sleep(500); // 사이클 간 대기
+                            continue;
+                        }
+                        else
+                        {
+                            AddLog("✓ 모든 작업 완료");
+                            break;
+                        }
+                    }
+
+                    Thread.Sleep(50);
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"❌ 오류 발생: {ex.Message}");
+            }
+            finally
+            {
+                        // 정리 작업
+                CleanupDevice(Wmx3Lib_cm, Wmx3Lib);
+                _motionThreadRunning = false;
+                _stateMachine.Reset();
+
+                        // 상태 폴링 정지
+                Dispatcher.Invoke(() =>
+                {
+                    if (_statusPollingTimer != null)
+                    {
+                        _statusPollingTimer.Stop();
+                        _statusPollingTimer = null;
+                    }
+
+                    InitializeViewModel();
+                });
+            }
+        }
+
+            // 모션 단계별 실행
+        private void ExecuteMotionStep(CoreMotion Wmx3Lib_cm, ref CoreMotionStatus CmStatus)
+        {
+            switch (_stateMachine.CurrentStep)
+            {
+                case MotionStep.Idle:
+                    _stateMachine.AdvanceStep();
+                    break;
+                case MotionStep.ZAxisUp_Initial:
+                    AddLog($"[사이클 {_stateMachine.CycleCount + 1}] Z축 상승: 0mm → 50mm");
+                    MoveZAxis(Wmx3Lib_cm, Z_AXIS_UP, "Z축 상승");
+                    _stateMachine.AdvanceStep();
+                    break;
+
+                case MotionStep.MovingToTarget:
+                    AddLog($"[사이클 {_stateMachine.CycleCount + 1}] 웨이퍼 위치(Target)로 이동");
+                    MoveXYAxes(Wmx3Lib_cm, CmStatus, _targetPositionMM, 60000, "웨이퍼 적재소 도달");
+                    _stateMachine.AdvanceStep();
+                    break;
+
+                case MotionStep.ZAxisDown_PickUp:
+                    AddLog($"[사이클 {_stateMachine.CycleCount + 1}] Z축 하강: 50mm → 0mm (픽업 준비)");
+                    MoveZAxis(Wmx3Lib_cm, Z_AXIS_DOWN, "Z축 하강");
+                    _stateMachine.AdvanceStep();
+                    break;
+
+                case MotionStep.GraspingWafer:
+                    AddLog($"[사이클 {_stateMachine.CycleCount + 1}] 웨이퍼 그립 - 1초간 유지");
+                    Thread.Sleep(1000);
+                    AddLog("웨이퍼 그립 완료");
+                    _waferGrasped = true;
+                    _stateMachine.AdvanceStep();
+                    break;
+
+                case MotionStep.ZAxisUp_AfterPickUp:
+                    AddLog($"[사이클 {_stateMachine.CycleCount + 1}] Z축 상승: 0mm → 50mm (픽업 후)");
+                    MoveZAxis(Wmx3Lib_cm, Z_AXIS_UP, "Z축 상승");
+                    _stateMachine.AdvanceStep();
+                    break;
+
+                case MotionStep.MovingToGoal:
+                    AddLog($"[사이클 {_stateMachine.CycleCount + 1}] 최종 목적지(Goal)로 이동");
+                    MoveXYAxes(Wmx3Lib_cm, CmStatus, _goalPositionMM, 100000, "Goal 도달");
+                    _stateMachine.AdvanceStep();
+                    break;
+
+                case MotionStep.ZAxisDown_Place:
+                    AddLog($"[사이클 {_stateMachine.CycleCount + 1}] Z축 하강: 50mm → 0mm (배치)");
+                    MoveZAxis(Wmx3Lib_cm, Z_AXIS_DOWN, "Z축 하강");
+                    _stateMachine.AdvanceStep();
+                    break;
+
+                case MotionStep.ReleasingWafer:
+                    AddLog($"[사이클 {_stateMachine.CycleCount + 1}] 웨이퍼 해제 - 1초간 유지");
+                    Thread.Sleep(1000);
+                    AddLog("웨이퍼 해제 완료");
+                    _waferGrasped = false;
+                    _stateMachine.AdvanceStep();
+                    break;
+            }
+        }
+
+            // 모든 축 일시정지
+        private void PauseAllAxes(CoreMotion Wmx3Lib_cm)
+        {
+                  // 속도 Override를 0으로 설정하여 일시정지
+            Wmx3Lib_cm.Motion.Pause(0);
+            Wmx3Lib_cm.Motion.Pause(1);
+            Wmx3Lib_cm.Motion.Pause(2);
+        }
+
+            // 모든 축 긴급 중지
+        private void ImmediateStopAllAxes(CoreMotion Wmx3Lib_cm)
+        {
+            Wmx3Lib_cm.Motion.ExecQuickStop(0);
+            Wmx3Lib_cm.Motion.ExecQuickStop(1);
+            Wmx3Lib_cm.Motion.ExecQuickStop(2);
+        }
+
+             // 디바이스 초기화 (호밍, 서보 ON 등)
+        private void InitializeDevice(WMX3Api Wmx3Lib, CoreMotion Wmx3Lib_cm, 
+                                      ref EngineStatus EnStatus, ref CoreMotionStatus CmStatus)
+        {
             AddLog("프로그램 시작");
             Thread.Sleep(1000);
 
-            // 디바이스 생성
+                   // 디바이스 생성
             Wmx3Lib.CreateDevice("C:\\Program Files\\SoftServo\\WMX3\\", DeviceType.DeviceTypeNormal, 0xFFFFFFFF);
             Wmx3Lib.SetDeviceName("InterpolationMotion");
 
-            // 서보 통신 시작
+                  // 서보 통신 시작
             for (uint i = 0; i < 100; i++)
             {
                 Wmx3Lib.StartCommunication(0xFFFFFFFF);
@@ -203,14 +469,9 @@ namespace EfemSimulation
                     AddLog("서보 통신 연결 완료");
                     break;
                 }
-
-                if (i == 0)
-                {
-                    StartStatusPolling();
-                }
             }
 
-            // 모든 축 서보 ON
+                  // 모든 축 서보 ON
             Wmx3Lib_cm.AxisControl.SetServoOn(0, true);
             Wmx3Lib_cm.AxisControl.SetServoOn(1, true);
             Wmx3Lib_cm.AxisControl.SetServoOn(2, true);
@@ -231,12 +492,12 @@ namespace EfemSimulation
 
                 Thread.Sleep(100);
             }
-            // 호밍 시작 위치로 X/Y축 이동
+
+                   // 호밍
             AddLog($"호밍 시작 위치로 이동: ({_startPositionMM.X:F1}mm, {_startPositionMM.Y:F1}mm)");
             MoveXYAxes(Wmx3Lib_cm, CmStatus, _startPositionMM, 5000, "호밍 시작 위치 이동");
             _homingStarted = true;
 
-            // 호밍
             for (int i = 0; i < 3; i++)
             {
                 Config.HomeParam homeParam = new Config.HomeParam();
@@ -252,25 +513,6 @@ namespace EfemSimulation
             {
                 Wmx3Lib_cm.GetStatus(ref CmStatus);
 
-                // 현재 위치 표시 (호밍 중 위치 업데이트)
-                double posX_pulse = CmStatus.AxesStatus[0].PosCmd;
-                double posY_pulse = CmStatus.AxesStatus[1].PosCmd;
-
-                double posX_mm = PulseToMM(0, posX_pulse);
-                double posY_mm = PulseToMM(1, posY_pulse);
-
-                Point currentPos = new Point(posX_mm, posY_mm);
-
-                Dispatcher.Invoke(() =>
-                {
-                    UpdateStagePositionOnCanvas(currentPos);
-
-                    if (_waferGrasped)
-                    {
-                        UpdateWaferPositionOnCanvas(currentPos);
-                    }
-                });
-
                 if (CmStatus.AxesStatus[0].HomeDone &&
                     CmStatus.AxesStatus[1].HomeDone &&
                     CmStatus.AxesStatus[2].HomeDone)
@@ -278,45 +520,25 @@ namespace EfemSimulation
                     AddLog("호밍(Homing) 완료");
                     break;
                 }
+
                 Thread.Sleep(100);
             }
+        }
 
-            // Step1. Z축 상승 (0mm → 50mm, 2초 이내)
-            AddLog("Step1. 시작점(Start)에서 Z축 서보모터 상승 시작: 0mm → 50mm");
-            MoveZAxis(Wmx3Lib_cm, Z_AXIS_UP, "Z축 상승");
-
-            // Step2. Start → Target으로 X/Y축 이동 (5초 이내)
-            AddLog("Step2. 웨이퍼 위치(Target)로 X/Y축 이동 시작");
-            MoveXYAxes(Wmx3Lib_cm, CmStatus, _targetPositionMM, 60000, "웨이퍼 적재소 도달");
-
-            // Step3. Z축 하강 (50mm → 0mm, 2초 이내)
-            AddLog("Step3. Target에서 웨이퍼 픽업을 위해 Z축 서보모터 하강 시작: 50mm → 0mm");
-            MoveZAxis(Wmx3Lib_cm, Z_AXIS_DOWN, "Z축 하강");
-
-            // Step4. 웨이퍼 그립 (1초)
-            AddLog("Step4. 웨이퍼 그립 시작 - 1초간 유지");
-            Thread.Sleep(1000);
-            AddLog("웨이퍼 그립 완료");
-            _waferGrasped = true;
-
-            // Step5. Z축 상승 (0mm → 50mm, 2초 이내)
-            AddLog("Step5. 웨이퍼 픽업 후 Z축 서보모터 상승 시작: 0mm → 50mm");
-            MoveZAxis(Wmx3Lib_cm, Z_AXIS_UP, "Z축 상승");
-
-            // Step6. Target → Goal로 X/Y축 이동 (7초 이내)
-            AddLog("Step6. 최종 목적지(Goal)로 X/Y축 이동 시작");
-            MoveXYAxes(Wmx3Lib_cm, CmStatus, _goalPositionMM, 100000, "Goal 도달");
-
-            // ========== 모션 완료 후 처리 ==========
+            // 디바이스 정리 및 종료
+        private void CleanupDevice(CoreMotion Wmx3Lib_cm, WMX3Api Wmx3Lib)
+        {
+                  // 모든 축 모션 대기
             Wmx3Lib_cm.Motion.Wait(0);
             Wmx3Lib_cm.Motion.Wait(1);
             Wmx3Lib_cm.Motion.Wait(2);
 
-            // 서보 OFF
+                  // 서보 OFF
             Wmx3Lib_cm.AxisControl.SetServoOn(0, false);
             Wmx3Lib_cm.AxisControl.SetServoOn(1, false);
             Wmx3Lib_cm.AxisControl.SetServoOn(2, false);
 
+            CoreMotionStatus CmStatus = new CoreMotionStatus();
             while (true)
             {
                 Wmx3Lib_cm.GetStatus(ref CmStatus);
@@ -330,7 +552,7 @@ namespace EfemSimulation
                 Thread.Sleep(100);
             }
 
-            // 통신 종료
+                  // 통신 종료
             Wmx3Lib.StopCommunication(0xFFFFFFFF);
             Wmx3Lib.CloseDevice();
             Wmx3Lib_cm.Dispose();
@@ -342,118 +564,6 @@ namespace EfemSimulation
             {
                 MessageBox.Show("웨이퍼 이송 완료!", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
             });
-        }
-
-        /// <summary>
-        /// Z축을 목표 위치로 이동하는 메서드
-        /// </summary>
-        private void MoveZAxis(CoreMotion Wmx3Lib_cm, double targetZ_mm, string stepName)
-        {
-            CoreMotionStatus CmStatus = new CoreMotionStatus();
-
-            // Z축 펄스 변환
-            int targetZ_pulse = (int)(targetZ_mm * PulsesPerStage / StageMaxMM);
-
-            Motion.PosCommand zAxisCmd = new Motion.PosCommand
-            {
-                Axis = Z_AXIS_INDEX,
-                Target = targetZ_pulse
-            };
-
-
-            zAxisCmd.Profile.Type = ProfileType.Trapezoidal;
-            zAxisCmd.Profile.Velocity = 60000;   // Z축 속도 60,000 pulse/s = 약 180mm/s
-            zAxisCmd.Profile.Acc = 200000;
-            zAxisCmd.Profile.Dec = 200000;
-
-            Wmx3Lib_cm.Motion.StartPos(zAxisCmd);
-            AddLog($"  Z축 이동 중 → 목표: {targetZ_mm:F1}mm");
-
-            while (true)
-            {
-                Wmx3Lib_cm.GetStatus(ref CmStatus);
-
-                double currentZ_pulse = CmStatus.AxesStatus[Z_AXIS_INDEX].PosCmd;
-                double currentZ_mm = (currentZ_pulse / PulsesPerStage) * StageMaxMM;
-
-                //AddLog($"  Z축 위치: {currentZ_mm:F2}mm");
-
-                if (CmStatus.AxesStatus[Z_AXIS_INDEX].InPos)
-                {
-                    AddLog($"{stepName} 완료 (Z={currentZ_mm:F2}mm)");
-                    return;
-                }
-
-                Thread.Sleep(50);
-            }
-        }
-
-        /// X/Y축을 목표 위치로 이동하는 메서드
-        private void MoveXYAxes(CoreMotion Wmx3Lib_cm, CoreMotionStatus CmStatus, Point targetPos_mm, int velocityPps, string stepName)
-        {
-            // 목표 위치를 펄스로 변환
-            int targetX_pulse = MMToPulse(0, targetPos_mm.X);
-            int targetY_pulse = MMToPulse(1, targetPos_mm.Y);
-
-            // 선형 보간 명령
-            Motion.LinearIntplCommand xyCmd = new Motion.LinearIntplCommand();
-            xyCmd.AxisCount = 2;
-            xyCmd.Axis[0] = 0;  // X축
-            xyCmd.Axis[1] = 1;  // Y축
-            xyCmd.Target[0] = targetX_pulse;
-            xyCmd.Target[1] = targetY_pulse;
-            xyCmd.Profile.Type = ProfileType.Trapezoidal;
-            xyCmd.Profile.Velocity = velocityPps;
-            xyCmd.Profile.Acc = 200000;
-            xyCmd.Profile.Dec = 200000;
-
-            Wmx3Lib_cm.Motion.StartLinearIntplPos(xyCmd);
-            AddLog($"  X/Y축 이동 중 → 목표: ({targetPos_mm.X:F1}mm, {targetPos_mm.Y:F1}mm)  속도: {velocityPps} pulse/s");
-
-            int noUpdateCount = 0;
-
-            while (true)
-            {
-                Wmx3Lib_cm.GetStatus(ref CmStatus);
-
-                double currentX_pulse = CmStatus.AxesStatus[0].PosCmd;
-                double currentY_pulse = CmStatus.AxesStatus[1].PosCmd;
-                double currentX_mm = PulseToMM(0, currentX_pulse);
-                double currentY_mm = PulseToMM(1, currentY_pulse);
-
-                Point currentPos = new Point(currentX_mm, currentY_mm);
-
-                Dispatcher.Invoke(() =>
-                {
-                    UpdateStagePositionOnCanvas(currentPos);
-
-                    if (_waferGrasped)
-                    {
-                        UpdateWaferPositionOnCanvas(currentPos);
-                    }
-                });
-
-                // 목표 위치 도달 확인
-                double errorX = Math.Abs(currentX_mm - targetPos_mm.X);
-                double errorY = Math.Abs(currentY_mm - targetPos_mm.Y);
-                double toleranceMM = 1.0;
-
-                if (CmStatus.AxesStatus[0].InPos && CmStatus.AxesStatus[1].InPos && errorX <= toleranceMM && errorY <= toleranceMM)
-                {
-                    noUpdateCount++;
-                    if (noUpdateCount >= 3)
-                    {
-                        AddLog($"{stepName} 완료 (X={currentX_mm:F2}mm, Y={currentY_mm:F2}mm)");
-                        return;
-                    }
-                }
-                else
-                {
-                    noUpdateCount = 0;
-                }
-
-                Thread.Sleep(50);
-            }
         }
 
         private void SimulationLoop(object sender, EventArgs e)
@@ -537,7 +647,7 @@ namespace EfemSimulation
             });
         }
 
-        // 속도 그래프 모달 윈도우 열기
+            // 속도 그래프 모달 윈도우 열기
         private void BtnShowSpeedGraph_Click(object sender, RoutedEventArgs e)
         {
 
@@ -555,7 +665,7 @@ namespace EfemSimulation
             }
         }
 
-        // 서보 상태 폴링 시작 (100ms 주기)
+            // 서보 상태 폴링 시작 (100ms 주기)
         private void StartStatusPolling()
         {
             if (_statusPollingTimer != null)
@@ -574,7 +684,7 @@ namespace EfemSimulation
             AddLog("모터 상태 폴링 시작 (100ms 주기)");
         }
 
-        // Window 종료 시 타이머 정리
+             // Window 종료 시 타이머 정리
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
             if (_statusPollingTimer != null)
@@ -621,6 +731,105 @@ namespace EfemSimulation
             }
 
             return (int)(relativeMM * PulsesPerStage / StageMaxMM);
+        }
+
+
+            // Z축을 목표 위치로 이동하는 메서드
+        private void MoveZAxis(CoreMotion Wmx3Lib_cm, double targetZ_mm, string stepName)
+        {
+            CoreMotionStatus CmStatus = new CoreMotionStatus();
+
+                  // Z축 펄스 변환
+            int targetZ_pulse = (int)(targetZ_mm * PulsesPerStage / StageMaxMM);
+
+            Motion.PosCommand zAxisCmd = new Motion.PosCommand
+            {
+                Axis = Z_AXIS_INDEX,
+                Target = targetZ_pulse
+            };
+
+
+            zAxisCmd.Profile.Type = ProfileType.Trapezoidal;
+            zAxisCmd.Profile.Velocity = 60000;   // Z축 속도 60,000 pulse/s = 약 180mm/s
+            zAxisCmd.Profile.Acc = 200000;
+            zAxisCmd.Profile.Dec = 200000;
+
+            Wmx3Lib_cm.Motion.StartPos(zAxisCmd);
+            AddLog($"  Z축 이동 중 → 목표: {targetZ_mm:F1}mm");
+
+            while (true)
+            {
+                Wmx3Lib_cm.GetStatus(ref CmStatus);
+
+                double currentZ_pulse = CmStatus.AxesStatus[Z_AXIS_INDEX].PosCmd;
+                double currentZ_mm = (currentZ_pulse / PulsesPerStage) * StageMaxMM;
+
+                if (CmStatus.AxesStatus[Z_AXIS_INDEX].InPos)
+                {
+                    AddLog($"{stepName} 완료 (Z={currentZ_mm:F2}mm)");
+                    return;
+                }
+
+                Thread.Sleep(50);
+            }
+        }
+
+            // X/Y축을 목표 위치로 이동하는 메서드
+        private void MoveXYAxes(CoreMotion Wmx3Lib_cm, CoreMotionStatus CmStatus, Point targetPos_mm, int velocityPps, string stepName)
+        {
+                  // 목표 위치를 펄스로 변환
+            int targetX_pulse = MMToPulse(0, targetPos_mm.X);
+            int targetY_pulse = MMToPulse(1, targetPos_mm.Y);
+
+                  // 선형 보간 명령
+            Motion.LinearIntplCommand xyCmd = new Motion.LinearIntplCommand();
+            xyCmd.AxisCount = 2;
+            xyCmd.Axis[0] = 0;  // X축
+            xyCmd.Axis[1] = 1;  // Y축
+            xyCmd.Target[0] = targetX_pulse;
+            xyCmd.Target[1] = targetY_pulse;
+            xyCmd.Profile.Type = ProfileType.Trapezoidal;
+            xyCmd.Profile.Velocity = velocityPps;
+            xyCmd.Profile.Acc = 200000;
+            xyCmd.Profile.Dec = 200000;
+
+            Wmx3Lib_cm.Motion.StartLinearIntplPos(xyCmd);
+            AddLog($"  X/Y축 이동 중 → 목표: ({targetPos_mm.X:F1}mm, {targetPos_mm.Y:F1}mm)  속도: {velocityPps} pulse/s");
+
+            while (true)
+            {
+                Wmx3Lib_cm.GetStatus(ref CmStatus);
+
+                double currentX_pulse = CmStatus.AxesStatus[0].PosCmd;
+                double currentY_pulse = CmStatus.AxesStatus[1].PosCmd;
+                double currentX_mm = PulseToMM(0, currentX_pulse);
+                double currentY_mm = PulseToMM(1, currentY_pulse);
+
+                Point currentPos = new Point(currentX_mm, currentY_mm);
+
+                Dispatcher.Invoke(() =>
+                {
+                    UpdateStagePositionOnCanvas(currentPos);
+
+                    if (_waferGrasped)
+                    {
+                        UpdateWaferPositionOnCanvas(currentPos);
+                    }
+                });
+
+                        // 목표 위치 도달 확인
+                double errorX = Math.Abs(currentX_mm - targetPos_mm.X);
+                double errorY = Math.Abs(currentY_mm - targetPos_mm.Y);
+                double toleranceMM = 1.0;
+
+                if (CmStatus.AxesStatus[0].InPos && CmStatus.AxesStatus[1].InPos && errorX <= toleranceMM && errorY <= toleranceMM)
+                {
+                    AddLog($"{stepName} 완료 (X={currentX_mm:F2}mm, Y={currentY_mm:F2}mm)");
+                    return;
+                }
+
+                Thread.Sleep(50);
+            }
         }
     }
 }
