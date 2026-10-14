@@ -147,7 +147,7 @@ namespace EfemSimulation
             };
 
             this.DataContext = _viewModel;
-            AddLog("✓ UI 초기화 완료 - WMX3 미연결 상태");
+            AddLog("✓ UI 초기화 완료");
         }
 
         private void InitSimulationEnvironment()
@@ -417,7 +417,7 @@ namespace EfemSimulation
                     break;
 
                 case MotionStep.GraspingWafer:
-                    AddLog($"[사이클 {_stateMachine.CycleCount + 1}] 웨이퍼 그립 - 1초간 유지");
+                    AddLog($"[사이클 {_stateMachine.CycleCount + 1}] 웨이퍼 그립");
                     Thread.Sleep(1000);
                     AddLog("웨이퍼 그립 완료");
                     _waferGrasped = true;
@@ -443,7 +443,7 @@ namespace EfemSimulation
                     break;
 
                 case MotionStep.ReleasingWafer:
-                    AddLog($"[사이클 {_stateMachine.CycleCount + 1}] 웨이퍼 해제 - 1초간 유지");
+                    AddLog($"[사이클 {_stateMachine.CycleCount + 1}] 웨이퍼 해제");
                     Thread.Sleep(1000);
                     AddLog("웨이퍼 해제 완료");
                     _waferGrasped = false;
