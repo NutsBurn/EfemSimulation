@@ -59,9 +59,7 @@ namespace EfemSimulation.Models
         public bool IsRunning => _currentState == MotionState.Running;
         public bool IsPaused => _currentState == MotionState.Paused;
 
-        /// <summary>
-        /// 이송 시작 요청
-        /// </summary>
+        // 이송 시작 요청
         public void RequestStart()
         {
             if (_currentState == MotionState.Idle)
@@ -76,9 +74,7 @@ namespace EfemSimulation.Models
             }
         }
 
-        /// <summary>
         /// 이송 일시정지 요청
-        /// </summary>
         public void RequestPause()
         {
             if (_currentState == MotionState.Running)
@@ -87,9 +83,7 @@ namespace EfemSimulation.Models
             }
         }
 
-        /// <summary>
-        /// 일시정지된 이송 재개 요청
-        /// </summary>
+        // 일시정지된 이송 재개 요청
         public void RequestResume()
         {
             if (_currentState == MotionState.Paused)
@@ -99,9 +93,7 @@ namespace EfemSimulation.Models
             }
         }
 
-        /// <summary>
-        /// 현재 시나리오 완료 후 반복 중단 요청
-        /// </summary>
+        // 현재 사이클 완료 후 반복 중단 요청
         public void RequestStop()
         {
             if (_currentState == MotionState.Running || _currentState == MotionState.Paused)
@@ -111,9 +103,7 @@ namespace EfemSimulation.Models
             }
         }
 
-        /// <summary>
-        /// 긴급 중지(비상 정지) 요청 - 즉시 모든 모션 중단
-        /// </summary>
+        // 긴급 중지(비상 정지) 요청 - 즉시 모든 모션 중단
         public void RequestInterlock()
         {
             _interlockRequested = true;
@@ -121,9 +111,7 @@ namespace EfemSimulation.Models
             _repeatEnabled = false;
         }
 
-        /// <summary>
-        /// 일시정지 요청 확인 및 상태 업데이트
-        /// </summary>
+        // 일시정지 요청 확인 및 상태 업데이트
         public bool CheckAndApplyPause()
         {
             if (_pauseRequested)
@@ -135,9 +123,7 @@ namespace EfemSimulation.Models
             return false;
         }
 
-        /// <summary>
-        /// 모션 단계 진행
-        /// </summary>
+        // 모션 단계 진행
         public void AdvanceStep()
         {
             if (_currentState == MotionState.Running)
@@ -175,9 +161,7 @@ namespace EfemSimulation.Models
             }
         }
 
-        /// <summary>
-        /// 현재 시나리오 완료 시 호출 (반복 여부 결정)
-        /// </summary>
+        // 현재 사이클 완료 후 호출 (반복 여부 결정)
         public bool TryRestartCycle()
         {
             if (_currentStep == MotionStep.Completed && _repeatEnabled && !_stopRequested)
@@ -192,25 +176,19 @@ namespace EfemSimulation.Models
             return false;
         }
 
-        /// <summary>
-        /// 중단/반복 종료 여부 확인
-        /// </summary>
+        // 중단/반복 중단 여부 확인
         public bool ShouldStop()
         {
-            return _stopRequested || _interlockRequested;
+            return _stopRequested;
         }
 
-        /// <summary>
-        /// 긴급 중지 여부 확인
-        /// </summary>
+        // 긴급 정지 여부 확인
         public bool IsInterlocked()
         {
             return _interlockRequested;
         }
 
-        /// <summary>
-        /// 상태 리셋 (새로운 시작을 위해)
-        /// </summary>
+        // 상태 초기화 (새로운 시작을 위해)
         public void Reset()
         {
             _currentState = MotionState.Idle;

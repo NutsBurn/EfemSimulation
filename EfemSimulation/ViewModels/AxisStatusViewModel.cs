@@ -21,6 +21,8 @@ namespace EfemSimulation.ViewModels
         private static readonly SolidColorBrush GreenBrush = new SolidColorBrush(Color.FromRgb(34, 255, 85));   // 🟢 Servo ON
         private static readonly SolidColorBrush YellowBrush = new SolidColorBrush(Color.FromRgb(255, 193, 7));  // ⚠️ 경보
 
+        public event PropertyChangedEventHandler PropertyChanged;
+
         public int AxisIndex
         {
             get => _axisIndex;
@@ -81,9 +83,14 @@ namespace EfemSimulation.ViewModels
             get => _alarmCode == 0 ? "정상" : $"[경보] {_alarmCode}";
         }
 
-        /// <summary>
-        /// 상태에 따라 텍스트와 색상 업데이트
-        /// </summary>
+        public SolidColorBrush AlarmTextColor
+        {
+            get => _alarmCode == 0 
+                ? new SolidColorBrush(Color.FromRgb(34, 255, 85))    // 초록색
+                : new SolidColorBrush(Color.FromRgb(255, 68, 68));   // 빨간색
+        }
+
+        // 상태에 따라 텍스트와 색상 업데이트
         private void UpdateStatusDisplay()
         {
             if (_servoOn)
@@ -109,8 +116,6 @@ namespace EfemSimulation.ViewModels
                 StatusColor = RedBrush;
             }
         }
-
-        public event PropertyChangedEventHandler PropertyChanged;
 
         protected virtual bool SetProperty<T>(ref T storage, T value, [CallerMemberName] string propertyName = null)
         {
