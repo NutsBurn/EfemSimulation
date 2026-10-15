@@ -70,14 +70,6 @@ namespace EfemSimulation
         private bool _waferGrasped = false; // 웨이퍼 그립 상태
         private bool _homingStarted = false; // 호밍 상태
 
-            // ScottPlot 데이터 스트리머
-        private ScottPlot.Plottables.DataStreamer _xStreamer;
-        private ScottPlot.Plottables.DataStreamer _yStreamer;
-        private ScottPlot.Plottables.DataStreamer _zStreamer;
-
-            // 모달 윈도우 참조
-        private SpeedGraphWindow _speedGraphWindow;
-
         private MainWindowViewModel _viewModel;
 
             // 펄스와 밀리미터 변환 관련 상수
@@ -93,6 +85,10 @@ namespace EfemSimulation
 
             // WMX3 디바이스 생성 여부
         private bool _deviceCreated = false;
+
+            // 인터록 복구 관련 상태
+        private bool _interlockPending = false;     // 긴급정지 후 복구 대기 중
+        private bool _interlockRecovering = false;  // 복구 동작 수행 중
 
         public MainWindow()
         {
@@ -239,7 +235,54 @@ namespace EfemSimulation
         {
             _stateMachine.RequestInterlock();
             ImmediateStopAllAxes(_wmx3Lib_cm);
-            AddLog("🚨 긴급 중지(비상 정지) 요청됨 - 즉시 모든 모션 중단");
+            AddLog("🚨 긴급 중지(인터록) 요청");
+        }
+
+            // 인터록 복구 버튼
+        private void BtnInterlockRecover_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_interlockPending || _interlockRecovering) return;
+
+            _interlockRecovering = true;
+            BtnInterlockRecover.IsEnabled = false;
+            AddLog("인터록 복구 시작");
+
+            Thread recoverThread = new Thread(() =>
+            {
+                bool success = false;
+
+                try
+                {
+                    CoreMotionStatus recoverStatus = new CoreMotionStatus();
+                    RecoverFromInterlock(_wmx3Lib_cm, ref recoverStatus);
+                    success = true;
+                }
+                catch (Exception ex)
+                {
+                    AddLog($"인터록 복구 중 오류: {ex.Message}");
+                }
+
+                _interlockRecovering = false;
+
+                if (success)
+                {
+                    _interlockPending = false;
+                    AddLog("인터록 복구 완료");
+                    FinishAndResetUi();
+                }
+                else
+                {
+                              // 실패 시 재시도 가능하도록 버튼 다시 활성화
+                    Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        BtnInterlockRecover.IsEnabled = true;
+                    }));
+                }
+            })
+            {
+                IsBackground = true
+            };
+            recoverThread.Start();
         }
 
             // 미니맵 궤적 라인 초기화
@@ -304,10 +347,10 @@ namespace EfemSimulation
                         break;
                     }
 
-                              // 긴급 중지 체크
+                              // 긴급 중지(인터록) 체크
                     if (_stateMachine.IsInterlocked())
                     {
-                        AddLog("🚨 긴급 중지 신호 감지");
+                        AddLog("🚨 긴급 중지(인터록) 요청 감지");
                         ImmediateStopAllAxes(_wmx3Lib_cm);
                         break;
                     }
@@ -343,42 +386,69 @@ namespace EfemSimulation
             }
             finally
             {
-                        // 스냅샷 종료
-                _axisStatusManager?.StopSnapshot();
-                _axisStatusManager = null;
-
-                try
-                {
-                    CleanupDevice(Wmx3Lib);
-                }
-                catch (Exception ex)
-                {
-                    AddLog($"초기화 중 오류: {ex.Message}");
-                }
-
                 _motionThreadRunning = false;
-                _homingStarted = false;
-                _waferGrasped = false;
-                _stateMachine.Reset();
 
-                Dispatcher.BeginInvoke(new Action(() =>
+                if (_stateMachine.IsInterlocked() && _deviceCreated)
                 {
-                    if (_statusPollingTimer != null)
+                              // 긴급정지: 서보 ON/파지 상태를 유지한 채 복구 버튼 입력을 대기
+                    _interlockPending = true;
+                    AddLog("🚨 인터록 상태 - '인터록 복구' 버튼으로 복구하세요.");
+
+                    Dispatcher.BeginInvoke(new Action(() =>
                     {
-                        _statusPollingTimer.Stop();
-                        _statusPollingTimer = null;
+                        BtnInterlockRecover.IsEnabled = true;
+                    }));
+                }
+                else
+                {
+                               // 일반 중지: Start 지점으로 원점복귀 후 초기화
+                    if (_deviceCreated)
+                    {
+                        ReturnToStartPosition(_wmx3Lib_cm, ref CmStatus);
                     }
-
-                    TrajectoryLine.Points.Clear();
-                    UpdateStagePositionOnCanvas(_startPositionMM);
-                    UpdateWaferPositionOnCanvas(_targetPositionMM);
-
-                    InitializeViewModel();
-                }));
+                    FinishAndResetUi();
+                }
             }
         }
 
-            // 모션 단계별 실행
+            // 시작 전 상태로 복원
+        private void FinishAndResetUi()
+        {
+            _axisStatusManager?.StopSnapshot();
+            _axisStatusManager = null;
+
+            try
+            {
+                CleanupDevice(Wmx3Lib);
+            }
+            catch (Exception ex)
+            {
+                AddLog($"초기화 중 오류: {ex.Message}");
+            }
+
+            _motionThreadRunning = false;
+            _homingStarted = false;
+            _waferGrasped = false;
+            _stateMachine.Reset();
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (_statusPollingTimer != null)
+                {
+                    _statusPollingTimer.Stop();
+                    _statusPollingTimer = null;
+                }
+
+                BtnInterlockRecover.IsEnabled = false;
+                TrajectoryLine.Points.Clear();
+                UpdateStagePositionOnCanvas(_startPositionMM);
+                UpdateWaferPositionOnCanvas(_targetPositionMM);
+
+                InitializeViewModel();
+            }));
+        }
+
+        // 모션 단계별 실행
         private void ExecuteMotionStep(CoreMotion Wmx3Lib_cm, ref CoreMotionStatus CmStatus)
         {
             switch (_stateMachine.CurrentStep)
@@ -387,7 +457,7 @@ namespace EfemSimulation
                     _stateMachine.AdvanceStep();
                     break;
                 case MotionStep.ZAxisUp_Initial:
-                    AddLog($"[사이클 {_stateMachine.CycleCount + 1}] Z축 상승: 0mm → 50mm");
+                    AddLog($"[사이클 {_stateMachine.CycleCount + 1}] Z축 서보모터 상승: 0mm → 50mm");
                     MoveZAxis(Wmx3Lib_cm, Z_AXIS_UP, "Z축 상승");
                     _stateMachine.AdvanceStep();
                     break;
@@ -399,7 +469,7 @@ namespace EfemSimulation
                     break;
 
                 case MotionStep.ZAxisDown_PickUp:
-                    AddLog($"[사이클 {_stateMachine.CycleCount + 1}] Z축 하강: 50mm → 0mm (픽업 준비)");
+                    AddLog($"[사이클 {_stateMachine.CycleCount + 1}] Z축 서보모터 하강: 50mm → 0mm (픽업 준비)");
                     MoveZAxis(Wmx3Lib_cm, Z_AXIS_DOWN, "Z축 하강");
                     _stateMachine.AdvanceStep();
                     break;
@@ -413,7 +483,7 @@ namespace EfemSimulation
                     break;
 
                 case MotionStep.ZAxisUp_AfterPickUp:
-                    AddLog($"[사이클 {_stateMachine.CycleCount + 1}] Z축 상승: 0mm → 50mm (픽업 후)");
+                    AddLog($"[사이클 {_stateMachine.CycleCount + 1}] Z축 서보모터 상승: 0mm → 50mm (픽업 후)");
                     MoveZAxis(Wmx3Lib_cm, Z_AXIS_UP, "Z축 상승");
                     _stateMachine.AdvanceStep();
                     break;
@@ -425,7 +495,7 @@ namespace EfemSimulation
                     break;
 
                 case MotionStep.ZAxisDown_Place:
-                    AddLog($"[사이클 {_stateMachine.CycleCount + 1}] Z축 하강: 50mm → 0mm (배치)");
+                    AddLog($"[사이클 {_stateMachine.CycleCount + 1}] Z축 서보모터 하강: 50mm → 0mm (배치)");
                     MoveZAxis(Wmx3Lib_cm, Z_AXIS_DOWN, "Z축 하강");
                     _stateMachine.AdvanceStep();
                     break;
@@ -449,7 +519,7 @@ namespace EfemSimulation
             Wmx3Lib_cm.Motion.Pause(2);
         }
 
-            // 모든 축 긴급 중지 (빠른 감속 포함)
+            // 모든 축 긴급 중지
         private void ImmediateStopAllAxes(CoreMotion Wmx3Lib_cm)
         {
             try
@@ -467,11 +537,11 @@ namespace EfemSimulation
                 Wmx3Lib_cm.Motion.ExecQuickStop(1);
                 Wmx3Lib_cm.Motion.ExecQuickStop(2);
                 
-                AddLog("🛑 모든 축에 긴급 정지 명령 실행 - 빠른 감속 적용");
+                AddLog("긴급 정지 제어");
             }
             catch (Exception ex)
             {
-                AddLog($"❌ 긴급 정지 중 오류: {ex.Message}");
+                AddLog($"긴급 정지 중 오류: {ex.Message}");
             }
         }
 
@@ -629,12 +699,7 @@ namespace EfemSimulation
                 Thread.Sleep(100);
             }
 
-            AddLog("초기화 완료 - 시작 버튼으로 다시 실행할 수 있습니다.");
-
-            Dispatcher.Invoke(() =>
-            {
-                MessageBox.Show("웨이퍼 이송 완료!", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
-            });
+            AddLog("원점 복귀");
         }
 
         private void SimulationLoop(object sender, EventArgs e)
@@ -654,16 +719,6 @@ namespace EfemSimulation
 
             _currentMM.X = _startPositionMM.X + (_targetPositionMM.X - _startPositionMM.X) * smoothT;
             _currentMM.Y = _startPositionMM.Y + (_targetPositionMM.Y - _startPositionMM.Y) * smoothT;
-
-            double xSpeed = Math.Abs(_currentMM.X - prevMM.X) / 0.02 * 10;
-            double ySpeed = Math.Abs(_currentMM.Y - prevMM.Y) / 0.02 * 10;
-
-            if (_speedGraphWindow != null && _speedGraphWindow.IsVisible)
-            {
-                _xStreamer.Add(xSpeed);
-                _yStreamer.Add(ySpeed);
-                _speedGraphWindow.SpeedPlot.Refresh();
-            }
 
             UpdateWaferPositionOnCanvas(_currentMM);
         }
@@ -716,23 +771,6 @@ namespace EfemSimulation
                     LogListBox.Items.RemoveAt(LogListBox.Items.Count - 1);
                 }
             });
-        }
-
-            // 속도 그래프 모달 윈도우 열기
-        private void BtnShowSpeedGraph_Click(object sender, RoutedEventArgs e)
-        {
-
-            if (_speedGraphWindow == null || !_speedGraphWindow.IsVisible)
-            {
-                _speedGraphWindow.Owner = this;
-                _speedGraphWindow.Show();
-                AddLog("속도 그래프 윈도우 열기");
-            }
-            else
-            {
-                _speedGraphWindow.Focus();
-                AddLog("속도 그래프 윈도우 활성화");
-            }
         }
 
              // 서보 상태 폴링 시작 (100ms 주기)
@@ -836,10 +874,17 @@ namespace EfemSimulation
             zAxisCmd.Profile.Dec = 200000;
 
             Wmx3Lib_cm.Motion.StartPos(zAxisCmd);
-            AddLog($"  Z축 이동 중 → 목표: {targetZ_mm:F1}mm");
+            AddLog($"Z축 이동 중 → 목표: {targetZ_mm:F1}mm");
 
             while (true)
             {
+                        // 인터록 발생 시 대기 루프 종료
+                if (ShouldAbortMotionWait())
+                {
+                    AddLog($"{stepName} 중단 - 인터록 발생");
+                    return;
+                }
+
                 Wmx3Lib_cm.GetStatus(ref CmStatus);
 
                 double currentZ_pulse = CmStatus.AxesStatus[Z_AXIS_INDEX].PosCmd;
@@ -875,10 +920,17 @@ namespace EfemSimulation
             xyCmd.Profile.Dec = 200000;
 
             Wmx3Lib_cm.Motion.StartLinearIntplPos(xyCmd);
-            AddLog($"  X/Y축 이동 중 → 목표: ({targetPos_mm.X:F1}mm, {targetPos_mm.Y:F1}mm)  속도: {velocityPps} pulse/s");
+            AddLog($"X/Y축 서보모터 이동 중 → 목표: ({targetPos_mm.X:F1}mm, {targetPos_mm.Y:F1}mm)  속도: {velocityPps} pulse/s");
 
             while (true)
             {
+                        // 인터록 발생 시 루프 종료
+                if (ShouldAbortMotionWait())
+                {
+                    AddLog($"{stepName} 중단 - 인터록 발생");
+                    return;
+                }
+
                 Wmx3Lib_cm.GetStatus(ref CmStatus);
 
                 double currentX_pulse = CmStatus.AxesStatus[0].PosCmd;
@@ -934,6 +986,92 @@ namespace EfemSimulation
             {
                 _deviceCreated = false;
             }
+        }
+
+            // 중지/긴급 정지 후 Start 지점으로 안전하게 원점복귀 (Z 상승 → XY 이동 → Z 하강)
+        private void ReturnToStartPosition(CoreMotion Wmx3Lib_cm, ref CoreMotionStatus CmStatus)
+        {
+            AddLog("장비 원점복귀 시작 (Start 지점)");
+
+            try
+            {
+                        // 일시정지/긴급 정지 상태의 축이 이동 명령을 받을 수 있도록 재개
+                for (int i = 0; i < 3; i++)
+                {
+                    Wmx3Lib_cm.Motion.Resume(i);
+                }
+
+                        // 진행 중인 모션이 완전히 멈출 때까지 대기
+                Wmx3Lib_cm.Motion.Wait(0);
+                Wmx3Lib_cm.Motion.Wait(1);
+                Wmx3Lib_cm.Motion.Wait(2);
+
+                        // 1. Z축 상승 (이동 중 충돌 방지)
+                MoveZAxis(Wmx3Lib_cm, Z_AXIS_UP, "원점복귀 Z축 상승");
+
+                        // 2. X/Y축 Start 지점으로 이동
+                MoveXYAxes(Wmx3Lib_cm, CmStatus, _startPositionMM, 50000, "원점복귀 X/Y 이동");
+
+                        // 3. Z축 하강 (초기 상태)
+                MoveZAxis(Wmx3Lib_cm, Z_AXIS_DOWN, "원점복귀 Z축 하강");
+
+                AddLog("원점복귀 완료 - Start 지점 도착");
+            }
+            catch (Exception ex)
+            {
+                AddLog($"원점복귀 중 오류: {ex.Message}");
+            }
+        }
+
+            // 인터록 복구 시퀀스
+            //  - 웨이퍼 흡착 중: 웨이퍼 공급소로 이동 → Z축 서보모터 하강 → 웨이퍼 내려놓기 → Z 서보모터 상승 → 시작지점 복귀
+            //  - 웨이퍼 미흡착 중: 시작 지점으로 이동
+        private void RecoverFromInterlock(CoreMotion Wmx3Lib_cm, ref CoreMotionStatus CmStatus)
+        {
+                  // 서보모터 모션 종료 대기
+            for (int i = 0; i < 3; i++)
+            {
+                Wmx3Lib_cm.Motion.Resume(i);
+            }
+
+            Wmx3Lib_cm.Motion.Wait(0);
+            Wmx3Lib_cm.Motion.Wait(1);
+            Wmx3Lib_cm.Motion.Wait(2);
+
+                  // 이동 중 충돌 방지를 위한 Z축 상승
+                  //MoveZAxis(Wmx3Lib_cm, Z_AXIS_UP, "[Repair] Z축 상승");
+
+            if (_waferGrasped)
+            {
+                AddLog("[Repair] 웨이퍼 흡착 State - 웨이퍼 공급소 이동.");
+
+                MoveXYAxes(Wmx3Lib_cm, CmStatus, _targetPositionMM, 50000, "[Repair]  웨이퍼 공급소 도달");
+                MoveZAxis(Wmx3Lib_cm, Z_AXIS_DOWN, "[Repair] Z축 하강 (웨이퍼 재배치)");
+
+                        // 웨이퍼 탈착
+                _waferGrasped = false;
+                Dispatcher.Invoke(() =>
+                {
+                    UpdateWaferPositionOnCanvas(_targetPositionMM);
+                });
+                AddLog("[Repair] 웨이퍼 공급소에 재배치 완료");
+
+                MoveZAxis(Wmx3Lib_cm, Z_AXIS_UP, "[Repair] Z축 상승");
+            }
+            else
+            {
+                AddLog("[Repair] 웨이퍼 미흡착 State - 시작 지점으로 이동");
+            }
+
+                  // 원점복귀
+            MoveXYAxes(Wmx3Lib_cm, CmStatus, _startPositionMM, 50000, "[Repair] Start 지점 도달");
+            MoveZAxis(Wmx3Lib_cm, Z_AXIS_DOWN, "[Repair] 복구 Z축 하강");
+        }
+
+            // 인터록 발생 시 모션 대기 시퀀스 중단 여부 - 복구 동작 중에는 미중단
+        private bool ShouldAbortMotionWait()
+        {
+            return _stateMachine.IsInterlocked() && !_interlockRecovering;
         }
     }
 }

@@ -2,9 +2,8 @@ using System;
 
 namespace EfemSimulation.Models
 {
-    /// <summary>
-    /// 웨이퍼 이송 시뮬레이션의 상태 열거형
-    /// </summary>
+
+      // 웨이퍼 이송 상태
     public enum MotionState
     {
         Idle,           // 대기 중
@@ -16,9 +15,7 @@ namespace EfemSimulation.Models
         Completed       // 모든 작업 완료
     }
 
-    /// <summary>
-    /// 웨이퍼 이송 시뮬레이션의 현재 단계
-    /// </summary>
+      // 웨이퍼 이송 현재 단계
     public enum MotionStep
     {
         Idle,
@@ -34,22 +31,20 @@ namespace EfemSimulation.Models
         Completed
     }
 
-    /// <summary>
-    /// 웨이퍼 이송 모션 상태 머신
-    /// </summary>
+      // 웨이퍼 이송 모션 상태 머신
     public class MotionStateMachine
     {
-        // 현재 상태 및 단계
+            // 현재 상태 및 단계
         internal MotionState _currentState = MotionState.Idle;
         internal MotionStep _currentStep = MotionStep.Idle;
 
-        // 제어 신호
+            // 제어 신호
         private bool _pauseRequested = false;
         private bool _stopRequested = false;
         private bool _interlockRequested = false;
         private bool _resumeRequested = false;
 
-        // 반복 제어
+            // 반복 제어
         private bool _repeatEnabled = true;
         private int _cycleCount = 0;
 
@@ -59,7 +54,7 @@ namespace EfemSimulation.Models
         public bool IsRunning => _currentState == MotionState.Running;
         public bool IsPaused => _currentState == MotionState.Paused;
 
-        // 이송 시작 요청
+            // 이송 시작 요청
         public void RequestStart()
         {
             if (_currentState == MotionState.Idle)
@@ -74,7 +69,7 @@ namespace EfemSimulation.Models
             }
         }
 
-        /// 이송 일시정지 요청
+            // 이송 일시정지 요청
         public void RequestPause()
         {
             if (_currentState == MotionState.Running)
@@ -83,7 +78,7 @@ namespace EfemSimulation.Models
             }
         }
 
-        // 일시정지된 이송 재개 요청
+            // 일시정지된 이송 재개 요청
         public void RequestResume()
         {
             if (_currentState == MotionState.Paused)
@@ -93,7 +88,7 @@ namespace EfemSimulation.Models
             }
         }
 
-        // 현재 사이클 완료 후 반복 중단 요청
+            // 현재 사이클 완료 후 반복 중단 요청
         public void RequestStop()
         {
             if (_currentState == MotionState.Running || _currentState == MotionState.Paused)
@@ -103,7 +98,7 @@ namespace EfemSimulation.Models
             }
         }
 
-        // 긴급 중지(비상 정지) 요청 - 즉시 모든 모션 중단
+            // 긴급 중지(비상 정지) 요청 - 즉시 모든 모션 중단
         public void RequestInterlock()
         {
             _interlockRequested = true;
@@ -111,7 +106,7 @@ namespace EfemSimulation.Models
             _repeatEnabled = false;
         }
 
-        // 일시정지 요청 확인 및 상태 업데이트
+            // 일시정지 요청 확인 및 상태 업데이트
         public bool CheckAndApplyPause()
         {
             if (_pauseRequested)
@@ -123,7 +118,7 @@ namespace EfemSimulation.Models
             return false;
         }
 
-        // 모션 단계 진행
+            // 모션 단계 진행
         public void AdvanceStep()
         {
             if (_currentState == MotionState.Running)
@@ -161,7 +156,7 @@ namespace EfemSimulation.Models
             }
         }
 
-        // 현재 사이클 완료 후 호출 (반복 여부 결정)
+            // 현재 사이클 완료 후 호출 (반복 여부 결정)
         public bool TryRestartCycle()
         {
             if (_currentStep == MotionStep.Completed && _repeatEnabled && !_stopRequested)
@@ -176,19 +171,19 @@ namespace EfemSimulation.Models
             return false;
         }
 
-        // 중단/반복 중단 여부 확인
+            // 중단/반복 중단 여부 확인
         public bool ShouldStop()
         {
             return _stopRequested;
         }
 
-        // 긴급 정지 여부 확인
+            // 긴급 정지 여부 확인
         public bool IsInterlocked()
         {
             return _interlockRequested;
         }
 
-        // 상태 초기화 (새로운 시작을 위해)
+            // 상태 초기화
         public void Reset()
         {
             _currentState = MotionState.Idle;
